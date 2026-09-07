@@ -47,7 +47,7 @@ def analisar_oferta_com_gemini(titulo, preco, descricao):
 
     Sua tarefa:
     1. Avalie se o preço está significativamente abaixo do valor de mercado.
-    2. Verifique se há sinais de defeitos graves.
+    2. Verifique se há sinais de defeitos graves (iCloud preso, Face ID quebrado, tela paralela, peças trocadas, para retirar peças).
     3. Determine se é uma OPORTUNIDADE REAL de revenda com lucro.
 
     Responda EXATAMENTE neste formato:
@@ -57,14 +57,16 @@ def analisar_oferta_com_gemini(titulo, preco, descricao):
     """
 
     try:
+        # Chamada direta e compatível com o SDK google-genai
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=prompt,
+            contents=prompt
         )
         return response.text
     except Exception as e:
         print(f"Erro na análise da IA: {e}")
         return None
+                             
 
 def monitorar_marketplace():
     print("Iniciando monitoramento de iPhones...")
