@@ -5,39 +5,38 @@ import requests
 from flask import Flask
 from google import genai
 
-# --- SERVIDOR WEB FALSO PARA ENGANAR O RENDER ---
+# --- SERVIDOR WEB LEVE PARA MANTER O RENDER ATIVO ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot de monitoramento está ativo e rodando!"
+    return "Bot de monitoramento de iPhones ativo e rodando!"
 
 def rodar_servidor():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- LÓGICA DO BOT DO TELEGRAM E GEMINI ---
+# --- CONFIGURAÇÕES DAS CHAVES DE ACESSO ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+CHAT_ID = os.environ.get("CHAT_ID")
 
+# Inicializa a biblioteca do Gemini
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-def obter_chat_id():
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates"
-    try:
-        response = requests.get(url).json()
-        if response.get("result"):
-            return response["result"][-1]["message"]["chat"]["id"]
-    except Exception as e:
-        print(f"Erro ao buscar chat_id: {e}")
-    return None
-
 def enviar_mensagem_telegram(chat_id, texto):
+    """Envia as notificações para o seu Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": texto, "parse_mode": "Markdown"}
-    requests.post(url, json=payload)
+    try:
+        response = requests.post(url, json=payload)
+        return response.ok
+    except Exception as e:
+        print(f"Erro ao enviar mensagem no Telegram: {e}")
+        return False
 
 def analisar_oferta_com_gemini(titulo, preco, descricao):
+    """Envia os dados do anúncio para a avaliação da IA."""
     prompt = f"""
     Você é um especialista em compra e revenda de iPhones usados.
     Analise o seguinte anúncio:
@@ -57,7 +56,6 @@ def analisar_oferta_com_gemini(titulo, preco, descricao):
     """
 
     try:
-        # Chamada direta e compatível com o SDK google-genai
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt
@@ -66,20 +64,16 @@ def analisar_oferta_com_gemini(titulo, preco, descricao):
     except Exception as e:
         print(f"Erro na análise da IA: {e}")
         return None
-                             
 
 def monitorar_marketplace():
+    """Função principal que checa os anúncios e dispara os alertas."""
     print("Iniciando monitoramento de iPhones...")
     
-    # Aguarda 10 segundos para dar tempo do servidor web iniciar
-    time.sleep(10)
-    
-    chat_id = obter_chat_id()
-
-    if not chat_id:
-        print("Atenção: Mande uma mensagem (ex: /start) no Telegram para o seu bot para ativá-lo!")
+    if not CHAT_ID:
+        print("Atenção: Adicione a variável CHAT_ID no painel do Render!")
         return
 
+    # Lista de anúncios simulados (substitua futuramente pelo scraper real)
     anuncios_testes = [
         {
             "id": "101",
@@ -107,23 +101,24 @@ def monitorar_marketplace():
                 f"📊 *Análise da IA:*\n{analise}\n\n"
                 f"🔗 [Clique aqui para abrir o anúncio]({anuncio['url']})"
             )
-            enviar_mensagem_telegram(chat_id, mensagem)
-            print("Alerta enviado para o Telegram!")
+            enviar_mensagem_telegram(CHAT_ID, mensagem)
+            print("Alerta enviado para o Telegram com sucesso!")
 
-def iniciar_bot():
+def iniciar_loop():
+    """Roda a checagem a cada 5 minutos."""
+    time.sleep(5)  # Aguarda 5 segundos para o servidor web iniciar
     while True:
         try:
             monitorar_marketplace()
         except Exception as e:
-            print(f"Erro no loop do bot: {e}")
-        time.sleep(300)
+            print(f"Erro no loop de verificação: {e}")
+        time.sleep(300) # Aguarda 300 segundos (5 minutos) entre cada varredura
 
 if __name__ == "__main__":
-    # Inicia o robô em uma thread paralela
-    thread_bot = threading.Thread(target=iniciar_bot)
+    # Inicia o robô em segundo plano
+    thread_bot = threading.Thread(target=iniciar_loop)
     thread_bot.daemon = True
     thread_bot.start()
 
-    # Roda o servidor web na porta exigida pelo Render
+    # Inicia o servidor Flask exigido pelo Render
     rodar_servidor()
-    
