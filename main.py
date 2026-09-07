@@ -5,7 +5,7 @@ import requests
 from flask import Flask
 from google import genai
 
-# --- SERVIDOR WEB LEVE PARA MANTER O RENDER ATIVO ---
+# --- SERVIDOR WEB LEVE PARA O RENDER ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -16,27 +16,24 @@ def rodar_servidor():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- CONFIGURAÇÕES DAS CHAVES DE ACESSO ---
+# --- CONFIGURAÇÕES ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# Inicializa a biblioteca do Gemini
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 def enviar_mensagem_telegram(chat_id, texto):
-    """Envia as notificações para o seu Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": texto, "parse_mode": "Markdown"}
     try:
         response = requests.post(url, json=payload)
         return response.ok
     except Exception as e:
-        print(f"Erro ao enviar mensagem no Telegram: {e}")
+        print(f"Erro ao enviar no Telegram: {e}")
         return False
 
 def analisar_oferta_com_gemini(titulo, preco, descricao):
-    """Envia os dados do anúncio para a avaliação da IA."""
     prompt = f"""
     Você é um especialista em compra e revenda de iPhones usados.
     Analise o seguinte anúncio:
@@ -46,7 +43,7 @@ def analisar_oferta_com_gemini(titulo, preco, descricao):
 
     Sua tarefa:
     1. Avalie se o preço está significativamente abaixo do valor de mercado.
-    2. Verifique se há sinais de defeitos graves (iCloud preso, Face ID quebrado, tela paralela, peças trocadas, para retirar peças).
+    2. Verifique se há sinais de defeitos graves.
     3. Determine se é uma OPORTUNIDADE REAL de revenda com lucro.
 
     Responda EXATAMENTE neste formato:
@@ -56,24 +53,20 @@ def analisar_oferta_com_gemini(titulo, preco, descricao):
     """
 
     try:
-        response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
+        chat = ai_client.chats.create(model='gemini-2.5-flash')
+        response = chat.send_message(prompt)
         return response.text
     except Exception as e:
-        print(f"Erro na análise da IA: {e}")
+        print(f"Erro na IA: {e}")
         return None
 
 def monitorar_marketplace():
-    """Função principal que checa os anúncios e dispara os alertas."""
     print("Iniciando monitoramento de iPhones...")
     
     if not CHAT_ID:
         print("Atenção: Adicione a variável CHAT_ID no painel do Render!")
         return
 
-    # Lista de anúncios simulados (substitua futuramente pelo scraper real)
     anuncios_testes = [
         {
             "id": "101",
@@ -105,20 +98,18 @@ def monitorar_marketplace():
             print("Alerta enviado para o Telegram com sucesso!")
 
 def iniciar_loop():
-    """Roda a checagem a cada 5 minutos."""
-    time.sleep(5)  # Aguarda 5 segundos para o servidor web iniciar
+    time.sleep(5)
     while True:
         try:
             monitorar_marketplace()
         except Exception as e:
-            print(f"Erro no loop de verificação: {e}")
-        time.sleep(300) # Aguarda 300 segundos (5 minutos) entre cada varredura
+            print(f"Erro no loop: {e}")
+        time.sleep(300)
 
 if __name__ == "__main__":
-    # Inicia o robô em segundo plano
     thread_bot = threading.Thread(target=iniciar_loop)
     thread_bot.daemon = True
     thread_bot.start()
 
-    # Inicia o servidor Flask exigido pelo Render
     rodar_servidor()
+    
